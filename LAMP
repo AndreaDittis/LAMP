@@ -279,4 +279,3 @@ wget https://codeload.github.com/phpredis/phpredis/zip/php7
 将extension=redis.so加入到php.ini
 重启php-fpm
 phpinfo():测试
-
