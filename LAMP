@@ -111,7 +111,6 @@ Tar -zxvf mysql.version.tar.gz
 # cd /opt/mysql(确定/opt/mysql/data目录为空)
 # ./bin/mysqld --initialize --user=mysql --basedir=/opt/mysql --datadir=/opt/mysql/data
 
-
 mysql 默认密码 xR#kI<7UC3WL
 
 如果执行之后没有输出,则是权限问题
@@ -140,11 +139,7 @@ mysql 默认密码 xR#kI<7UC3WL
 # service mysqld start
 Starting MySQL. SUCCESS! 
 
-
 问题: # service mysqld start ||  /etc/init.d/mysqld start
-
-
-
 
 原因: /etc/my.cnf 配置文件有错误
 如:/opt/mysql/logs/mysql_error.log  文件不存在
@@ -172,7 +167,6 @@ mysql> SET PASSWORD FOR 'root'@'localhost' = PASSWORD('newpass');
 make clean
 rm -f CMakeCache.txt
 rm -rf /etc/my.cnf 
-
 
 三: 安装PHP环境
 需要环境
@@ -278,4 +272,4 @@ wget https://codeload.github.com/phpredis/phpredis/zip/php7
 # vim /opt/php/etc/php.ini
 将extension=redis.so加入到php.ini
 重启php-fpm
-phpinfo():测试2
+phpinfo():测试
