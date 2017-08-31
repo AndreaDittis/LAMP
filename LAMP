@@ -1,0 +1,282 @@
+
+查看服务器的cpu和内存的硬件信息
+# cat /proc/cpuinfo   查看cpu信息
+# cat meminfo / free -m        查看内存信息
+# fdisk -l 查看分区情况
+# df -h 查看当前硬盘使用情况
+# uname -a 查看系统内核
+
+开机启动
+系统启动之后
+1 配置网卡,设置固定ip
+ifcofnig  查看当前网卡信息 (ip addr)
+vim /etc/sysconfig/network-scripts/ifcfg-eno1
+增加
+IPADDR=192.168.2.61
+GATEWAY=192.168.2.254
+DNS1=8.8.8.8
+修改
+ONBOOT=yes  //开机自启动         //启动时是否激活使用该网卡    
+BOOTPROTO=static   //静态IP     //网卡启用时获取ip的方式
+重启网卡服务
+service network restart
+ifconfig eth0 down
+ifconfig eth0 up
+2 创建普通用户,以普通用户登录
+useradd fengpj
+passwd fengpj
+3 用户提权,普通用户可以运行ROOT用户的命令
+vim /etc/sudoers
+在98行左右增加
+fengpj  ALL=(ALL)       ALL    表示fengpj用户可以在任何地方执行任何人的任何命令
+搭建LAMP 环境
+安装软件版本号
+openresty openresty-1.11.2.2.tar.gz
+mysql  mysql-boost-5.7.18.tar.gz
+php php-7.0.19.tar.gz
+boost_1_59_0.tar.gz
+libmcrypt-2.5.7.tar.gz
+
+所有安装目录为/opt/目录中
+mkdir  -p /opt/openresty /opt/mysql  /opt/mysql/data  /opt/php
+一 : 安装openresty
+创建运行用户
+# groupadd www
+# useradd -r -g www www -s /sbin/nologin
+
+解压openresty
+#yum -y install pcre-devel
+#yum -y install openssl-devel
+# tar -zxf openresty-1.11.2.2.tar.gz
+# cd openresty-1.11.2.2/
+编译配置检测
+# ./configure --prefix=/opt/openresty --with-luajit   集成luajit模块
+没有错误输出继续进行
+编译安装
+# gmake && gmake install
+#ln -sf /opt/openresty/nginx/sbin/nginx /usr/local/sbin/nginx
+测试安装是否成功
+关闭防火墙
+# systemctl stop firewalld
+vim /etc/selinux/config
+SELINUX=disabled
+
+查看nginx 进程   #ps aux | grep nginx 
+启动nginx  # /opt/openresty/nginx/sbin/nginx
+浏览器输入192.168.2.61
+至此 openresty安装完毕
+
+二 . MYSQL环境配置
+# yum -y install ncurses   ncurses-devel bison bison-devel cmake
+注意事项
+如果下载的mysql是带boost类库的,则在安装的时候:
+编译需要boost类库，可使用 -DDOWNLOAD_BOOST=1 -DWITH_BOOST= 参数将在指定路径查找
+底层环境需要    
+1: 创建mysql用户和修改软件的权限  
+# groupadd mysql  创建mysql组 
+     #  useradd -r -g mysql mysql -s /sbin/nologin (创建mysql用户并设置不可登录)
+2: 创建 /usr/local/mysql/data c目录
+ mkdir /opt/mysql
+ mkdir /opt/mysql/data
+3: 改变权限
+     chown -R mysql:mysql /opt/mysql/
+4: 释放MYSQL的源码包：
+Tar -zxvf mysql.version.tar.gz
+编译需要boost类库，可使用 -DDOWNLOAD_BOOST=1 -DWITH_BOOST= 参数将在指定路径查找，如未找到会指定下载并解压到指定的路径
+安装boost
+# tar xzf boost_1_59_0.tar.gz 
+# cd boost_1_59_0
+# ./bootstrap.sh
+# ./b2 install --perfix=dir
+5: 编译配置检测
+# cmake -DCMAKE_INSTALL_PREFIX=/opt/mysql -DMYSQL_DATADIR=/opt/mysql/data -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/root/boost_1_59_0.tar.gz
+没有错误继续进行
+编译并安装
+# make && make install
+
+6: 初始化数据(切换当前目录到/opt/mysql)
+       配置my.cnf参数文件/删除系统自带的配置文件
+ # rm -rf /etc/my.cnf
+在/etc/下创建my.cnf文件，加入如下参数，其他参数根据需要配置
+[client]
+    port=3306
+    socket=/opt/mysql/data/mysql.sock
+[mysqld]
+    port=3306
+    user=mysql
+    socket=/opt/mysql/data/mysql.sock
+    pid-file=/opt/mysql/data/mysql.pid
+    basedir=/opt/mysql
+    datadir=/opt/mysql/data
+# cd /opt/mysql(确定/opt/mysql/data目录为空)
+# ./bin/mysqld --initialize --user=mysql --basedir=/opt/mysql --datadir=/opt/mysql/data
+
+
+mysql 默认密码 xR#kI<7UC3WL
+
+如果执行之后没有输出,则是权限问题
+     改变权限
+     		chown -R mysql:mysql /opt/mysql/
+7: mysql的服务脚本放到系统服务中
+# cp ./support-files/mysql.server /etc/init.d/mysqld 	
+     # chmod 755 /etc/init.d/mysqld
+编辑刚刚复制来的Mysql数据库脚本文件，将大约46、47行的basedir与datadir参数分别修改为Mysql数据库程序保存目录和真实数据库文件内容。
+[root@linuxprobe mysql]# vim /etc/init.d/mysqld 
+………………省略部分输出信息………………
+ 39 #
+ 40 # If you want to affect other MySQL variables, you should make your changes
+ 41 # in the /etc/my.cnf, ~/.my.cnf or other MySQL configuration files.
+ 42 
+ 43 # If you change base dir, you must also change datadir. These may get
+ 44 # overwritten by settings in the MySQL configuration files.
+ 45 
+ 46 basedir=/opt/mysql
+ 47 datadir=/opt/mysql/data
+ 48 
+………………省略部分输出信息………………
+配置好脚本文件后便可以用service命令启动mysqld数据库服务了，mysqld是Mysql数据库程序的服务名称
+
+8: 启动mysql
+# service mysqld start
+Starting MySQL. SUCCESS! 
+
+
+问题: # service mysqld start ||  /etc/init.d/mysqld start
+
+
+
+
+原因: /etc/my.cnf 配置文件有错误
+如:/opt/mysql/logs/mysql_error.log  文件不存在
+
+9: 连接mysql服务器
+# cd /opt/mysql
+# ./bin/mysqladmin -u root -p password
+Enter password: 
+New password: 
+Confirm new password: 
+Warning: Since password will be sent to server in plain text, use ssl connection to ensure password safety.
+mysql> select version();
++-----------+
+| version() |
++-----------+
+| 5.7.8-rc |
++-----------+
+1 row in set (0.00 sec)
+ 
+ 修改密码:
+mysql> SET PASSWORD FOR 'root'@'localhost' = PASSWORD('newpass');
+
+注: 
+如果中途出现错误则执行下面命令
+make clean
+rm -f CMakeCache.txt
+rm -rf /etc/my.cnf 
+
+
+三: 安装PHP环境
+需要环境
+yum -y install gcc gcc-c++ autoconf libjpeg libjpeg-devel libpng libpng-devel freetype freetype-devel libxml2 libxml2-devel zlib zlib-devel glibc glibc-devel glib2 glib2-devel bzip2 bzip2-devel ncurses ncurses-devel curl curl-devel e2fsprogs e2fsprogs-devel krb5 krb5-devel libidn libidn-devel openssl openssl-devel openldap openldap-devel nss_ldap openldap-clients openldap-servers gd gd2 gd-devel gd2-devel perl-CPAN pcre-devel
+安装libcrypt
+wget ftp://mcrypt.hellug.gr/pub/crypto/mcrypt/attic/libmcrypt/libmcrypt-2.5.7.tar.gz  
+# tar -zxf libmcrypt-2.5.7.tar.gz 
+# cd libmcrypt-2.5.7/
+# ./configure --prefix=/usr/local/lib/libmcrypt
+# make && make install
+
+
+
+1 释放MYSQL的源码包：
+# Tar -zxvf php-7.0.19.tar.gz
+2 进入源码包
+# cd php-7.0.19
+3 编译前配置  (--with-mysql 该选项已废弃,且全部使用mysqld) 
+# ./configure --prefix=/opt/php --with-config-file-path=/opt/php/etc  --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --with-gd --with-openssl  --with-mhash --with-png-dir --with-jpeg-dir --with-pcre-regex --with-iconv --with-zlib --with-mcrypt --with-gd --with-openssl --with-mhash --with-xmlrpc --with-curl --with-imap-ssl --with-iconv   --with-mcrypt --with-curl  --with-freetype-dir  --with-iconv-dir --with-xpm-dir= --enable-fpm --enable-mbstring --enable-pcntl  --enable-mbstring  --enable-sockets --enable-sysvmsg --enable-sysvsem  --enable-sysvshm --enable-shmop --enable-zip 
+4 编译安装
+# make && make install
+5 安装后的调整：
+     # cp php.ini-development  /opt/php/etc/php.ini
+     # cp /opt/php/etc/php-fpm.conf.default     /opt/php/etc/php-fpm.conf
+     # cp /opt/php/etc/php-fpm.d/www.conf.default /opt/php/etc/php-fpm.d/www.conf
+     # vim /opt/php/etc/php-fpm.conf
+去掉前面注释:    pid = run/php-fpm.pid
+# export PATH=/opt/php/bin:$PATH
+# export PATH=/opt/php/sbin:$PATH
+6 启动php
+   # /opt/php/sbin/php-fpm
+
+四 : 配置nginx php 解析
+# vim /opt/openresty/nginx/conf/nginx.conf
+ 1 
+ 2 user www www;
+ 3 worker_processes 1;
+ 4 
+ 5 #error_log logs/error.log;
+ 6 #error_log logs/error.log notice;
+ 7 #error_log logs/error.log info;
+ 8 
+ 9 #pid logs/nginx.pid;
+ 10 
+ 11 
+………………省略部分输出信息………………
+ 40 
+ 41 #access_log logs/host.access.log main;
+ 42 
+ 43 location / {
+ 44 		root html;
+ 45		 index index.html index.htm index.php;
+ 46 }
+ 47 
+………………省略部分输出信息………………
+ 62 
+ 63 pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+ 64 
+ 65 location ~ \.php$ {
+ 66 	root html;
+ 67 	fastcgi_pass 127.0.0.1:9000;
+ 68 	fastcgi_index index.php;
+ 69 	fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name
+ 70 	include fastcgi_params;
+ 71 }
+ 72 
+………………省略部分输出信息………………
+
+重启nginx服务器.浏览器访问
+/opt/openresty/nginx/sbin/nginx -s reload
+
+
+至此.LNMP 环境搭建完成
+
+五: 安装redis
+# wget http://download.redis.io/releases/redis-3.2.9.tar.gz
+# tar xzf redis-3.2.9.tar.gz
+      # cd redis-3.2.9
+# make && make install
+启动redis
+# cd utils/
+# ./install_server.sh  一路回车到底
+尝试连接
+# redis-cli 
+
+六:安装PHP扩展
+#redis
+wget http://download.redis.io/releases/redis-3.0.7.tar.gz
+
+#phpredis 非php7使用 下载后文件名为:phpredis-develop
+wget https://codeload.github.com/phpredis/phpredis/zip/develop
+
+#phpredis PHP7专属 下载后文件名为:phpredis-php7
+wget https://codeload.github.com/phpredis/phpredis/zip/php7
+
+# unzip phpredis-Version
+# cd phpredis-Version
+# /opt/php/bin/phpize
+# ./configure --with-php-config=/opt/php/bin/php-config
+# make && make install
+
+//增加php扩展
+# vim /opt/php/etc/php.ini
+将extension=redis.so加入到php.ini
+重启php-fpm
+phpinfo():测试
+
